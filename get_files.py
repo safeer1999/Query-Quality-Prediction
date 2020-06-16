@@ -3,7 +3,7 @@ import sys
 import pickle
 import re
 
-path = "../data/AspectJ"
+path = "../data/SWT/SWT-3.1"
 
 fname = []
 for root,d_names,f_names in os.walk(path):
@@ -34,7 +34,7 @@ print()
 print(len(content))
 
 
-with open('AspectJ_content.dat','wb') as save_file :
+with open('../data/SWT/SWT_content.dat','wb') as save_file :
 	pickle.dump(content,save_file)
 
 print('Completed saving contents')

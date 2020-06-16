@@ -1,17 +1,82 @@
 from whoosh.qparser import QueryParser
 from whoosh import index
 
-ix = index.open_dir('indexdir')
+import re
+import nltk
+from nltk.corpus import stopwords
+stop = stopwords.words('english')
+stemmer = nltk.PorterStemmer()
 
-qp = QueryParser("content", schema=ix.schema)
-q = qp.parse('The aspect below fails to compile with 1.1b2, producing the compilation error: -------------------- $ ajc com/ibm/amc/*.java com/ibm/amc/ejb/*.java d:/eclipse/runtime-workspace-ajsamples/Mock EJBs/com/ibm/amc/DemoBeanEJB.java:1: Cannot assign a value to the final field com.ibm.amc.DemoBean.ajc$interField$co m_ibm_amc$verbose !! no source information available !! 1 error --------------------------- package com.ibm.amc; import com.ibm.amc.ejb.SessionBean; /** * @author colyer * * To change this generated comment edit the template variable "typecomment": * Window&gt;Preferences&gt;Java&gt;Templates. * To enable and disable the creation of type comments go to * Window&gt;Preferences&gt;Java&gt;Code Generation. */ public aspect DemoBeanEJB { declare parents: DemoBean implements SessionBean; // THIS NEXT LINE IS THE CULPRIT static final boolean DemoBean.verbose = true; private transient String DemoBean.ctx; public void DemoBean.ejbActivate( ) { if ( verbose ) { System.out.println( "ejbActivate Called" ); } } } ------------------- Making the inter-type declaration non-final solves the problem...')
+import xml.etree.ElementTree as ET
+tree = ET.parse('../data/SWT/SWTBugRepository.xml')
+root = tree.getroot()
 
-# from whoosh.analysis import SimpleAnalyzer,RegexTokenizer
-# ana = RegexTokenizer(r'([a-zA-Z_\.0-9()]+)')
-# print([token.text for token in ana('The aspect below fails to compile with 1.1b2, producing the compilation error: -------------------- $ ajc com/ibm/amc/*.java com/ibm/amc/ejb/*.java d:/eclipse/runtime-workspace-ajsamples/Mock EJBs/com/ibm/amc/DemoBeanEJB.java:1: Cannot assign a value to the final field com.ibm.amc.DemoBean.ajc$interField$co m_ibm_amc$verbose !! no source information available !! 1 error --------------------------- package com.ibm.amc; import com.ibm.amc.ejb.SessionBean; /** * @author colyer * * To change this generated comment edit the template variable "typecomment": * Window&gt;Preferences&gt;Java&gt;Templates. * To enable and disable the creation of type comments go to * Window&gt;Preferences&gt;Java&gt;Code Generation. */ public aspect DemoBeanEJB { declare parents: DemoBean implements SessionBean; // THIS NEXT LINE IS THE CULPRIT static final boolean DemoBean.verbose = true; private transient String DemoBean.ctx; public void DemoBean.ejbActivate( ) { if ( verbose ) { System.out.println( "ejbActivate Called" ); } } } ------------------- Making the inter-type declaration non-final solves the problem...')])
 
-with ix.searcher() as s:
-	results = s.search(q,limit=20)
-	for i in results :
-		print(i)
+def preprocess(text):
+	punct = '''!"#$%'()*+,-/:;?@[\]^_`{|}~=&'''
+	text_remove_punct = ''
+	for i in text:
+		if i in punct:
+			continue
+
+		text_remove_punct+=i
+
+	text_remove_punct = text_remove_punct.lower()
+	tokens = re.split(r'[\s\.]+',text_remove_punct)
+	tokens_without_stopwords = []
+	for i in tokens:
+		if i not in stop:
+			tokens_without_stopwords.append(i)
+
+	tokens_stemmed = list(map(lambda x:stemmer.stem(x),tokens_without_stopwords))
+
+	return ' '.join(tokens_stemmed)
+
+
+def replaceSlash(path):
+	new_path = path.split('/')
+	new_path = '.'.join(new_path)
+	return new_path
+
+
+
+def removePath(num,path) :
+	count =0 
+	for i in range(len(path)) :
+		if path[i] == '/' :
+			count+=1
+
+		if count == num :
+			return replaceSlash(path[(i+1):]) 
+
+
+
+ix = index.open_dir('../data/SWT/indexdir')
+
+
+
+for bug in root :
+
+	print(bug.attrib['id'])
+
+	qp = QueryParser("content", schema=ix.schema)
+	if bug[0][1].text == None:
+		continue
+
+	query = preprocess(bug[0][1].text)
+	q = qp.parse(query)
+	actual = [i.text for i in bug.iter('file')]
+	
+	with ix.searcher() as s:
+		results = s.search(q,limit=20)
+		for i in results :
+			searched = removePath(4,i['path'])
+			print(searched)
+
+			if searched in actual :
+				print('match')
+				break
+
+	print()
+
 
